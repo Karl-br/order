@@ -22,7 +22,9 @@ pipeline {
         }
         stage('send-to-slack') {
             steps {
-               slackSend channel: 'yy-sonar-test', color: '#439FE0', message: "Project [To_do_list] analyzed. See http://cnwbzp1068.cn.dst.ibm.com:9000/sonarqube/dashboard?id=To_do_list." , teamDomain: 'phcompanyworkspace', tokenCredentialId: 'Sera'
+                slackSend channel: 'charles-sonar-test', color: '#439FE0', message: "Project [To_do_list] analyzed. See http://cnwbzp1068.cn.dst.ibm.com:9000/sonarqube/dashboard?id=To_do_list." , teamDomain: 'phcompanyworkspace', tokenCredentialId: 'liiQavvWSaeDFmSP6xnK5avv'
+                slackSend channel: 'yy-sonar-private', color: '#439FE0', message: "Project [To_do_list] analyzed. See http://cnwbzp1068.cn.dst.ibm.com:9000/sonarqube/dashboard?id=To_do_list." , teamDomain: 'phcompanyworkspace', tokenCredentialId: 'Sera'
+                slackSend channel: 'yy-sonar-test', color: '#439FE0', message: "Project [To_do_list] analyzed. See http://cnwbzp1068.cn.dst.ibm.com:9000/sonarqube/dashboard?id=To_do_list." , teamDomain: 'phcompanyworkspace', tokenCredentialId: 'Sera'
             }
         }
         //stage('Dependency-Check') { 
