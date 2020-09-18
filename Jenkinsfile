@@ -4,6 +4,6 @@ agent any
         stage('Build') { 
             steps {
                 sh './jenkins/run_maven_build.sh'
-      }
-   }
+        }
+    }
 }
