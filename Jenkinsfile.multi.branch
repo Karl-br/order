@@ -1,0 +1,391 @@
+#!groovy
+
+
+
+def version() {
+    def matcher = readFile('pom.xml') =~ '<version>(.+)</version>'
+    matcher ? matcher[1][1] : null
+}
+
+//def docker_passwd = "eyJhbGciOiJSUzI1NiIsImtpZCI6IiJ9.eyJpc3MiOiJrdWJlcm5ldGVzL3NlcnZpY2VhY2NvdW50Iiwia3ViZXJuZXRlcy5pby9zZXJ2aWNlYWNjb3VudC9uYW1lc3BhY2UiOiJsaWJlcnR5LXBvYy11YXQiLCJrdWJlcm5ldGVzLmlvL3NlcnZpY2VhY2NvdW50L3NlY3JldC5uYW1lIjoiZGV2b3BzLWNkMDItdG9rZW4tMmI0d3ciLCJrdWJlcm5ldGVzLmlvL3NlcnZpY2VhY2NvdW50L3NlcnZpY2UtYWNjb3VudC5uYW1lIjoiZGV2b3BzLWNkMDIiLCJrdWJlcm5ldGVzLmlvL3NlcnZpY2VhY2NvdW50L3NlcnZpY2UtYWNjb3VudC51aWQiOiI0YzY1YzU5Yi1iMDQ0LTExZWEtOGY5ZS0wMDUwNTY4NTM3NWEiLCJzdWIiOiJzeXN0ZW06c2VydmljZWFjY291bnQ6bGliZXJ0eS1wb2MtdWF0OmRldm9wcy1jZDAyIn0.XmVtBluxjqnynwtj3nRWkYm_RJowwz_PUroLcdNmb6j3PMXMi4dun4t7sgnKh6NWt86uiUUsxIQP8b9OcyhoykKXGJyi1N65nWc81J2f7KLE1Bfk-7n6c7sic_SvyffTqf3ukooMzoXI0remnxwuHSUZiGxN578i6SC0ztjFJjXy95IfU2y6jOSi-4mvNtSflw3Ml5VSsHgwLKqfEfp5KM390DhpvsZ2AZA93YEX3ljHOFcAWkrEDlG15bWXniSy5JosxRuvmIyKSBBXz7x1xayizObpIpFtw_hD-noUrHxDX0cabq4w7e5Pfm2IkMEo0guqEhcyQFMyurhXhoyk2w"
+
+
+
+node ('master'){
+
+  def mvn = tool 'maven'
+  def ant = tool 'ant'
+        
+	    stage ('Get Source Code'){
+            try{
+                checkout scm 
+            }catch(err){
+                throw err
+                }
+    	}
+
+	/*stage ('Jmeter test'){
+	try{	
+		sh """
+		pwd
+		/apps/apache-ant-1.10.8/bin/ant -buildfile ./Jmeter/build.xml
+		"""
+    }catch(err){
+        throw err
+        }
+    }*/
+if (env.BRANCH_NAME == 'master')
+    {
+
+
+    	
+    	
+    	stage ('Compile'){
+            try{
+                v=version()
+                if(v){
+                    echo "Building version ${v}"
+                }
+                sh "/usr/local/apache-maven-3.6.3/bin/mvn -v"
+            	sh "/usr/local/apache-maven-3.6.3/bin/mvn clean compile -U" 
+        	}catch(err){
+            	throw err
+                }
+        }
+       
+     /*
+        stage ('Unit Test'){
+            try{
+        		sh "/usr/local/apache-maven-3.6.3/bin/mvn test"
+        	}catch(err){
+            	throw err
+                }
+    	}  
+    	
+                try {
+                  stage('Unit Test') {
+                     sh "/usr/local/apache-maven-3.6.3/bin/mvn clean test"
+                     sh "/usr/local/apache-maven-3.6.3/bin/mvn surefire-report:report"   
+                    }
+                } finally {
+                    junit 'target/surefire-reports/*.xml'   
+                    jacoco(execPattern: 'target/jacoco.exec')
+                }    	
+   	*/
+
+  
+      	stage ('Build & Package'){
+            try{
+           	    sh "/usr/local/apache-maven-3.6.3/bin/mvn package -DskipTests" 
+               	archiveArtifacts "target/**/*"
+      	    }catch(err){
+           	    throw err
+           	    }
+   	    }
+   	    
+   	 /*  stage ('Code Scanning'){
+        	withSonarQubeEnv('sonarqube_admin'){
+            	try{
+                    sh"/usr/local/apache-maven-3.6.3/bin/mvn sonar:sonar -DskipTests"
+            	}catch(err){
+                	throw err
+                	}
+        	}
+    	}  
+    	
+            sleep 10
+
+            stage('Quality Gate') {
+                timeout(3) {
+                    def qg = waitForQualityGate()
+                    echo "---before qg:${qg.status}---"
+                    if (qg.status != 'OK') {
+                        error "未通过Sonarqube的代码质量阈检查,请及时修改！failure: ${qg.status}"
+                    }
+                    echo "---after qg:${qg.status}---"
+                }
+            }    	
+*/
+
+    	stage ('Deploy to nexus'){
+            try{
+        		sh "/usr/local/apache-maven-3.6.3/bin/mvn deploy -Dmaven.wagon.http.ssl.insecure=true -Dmaven.wagon.http.ssl.allowall=true"
+        	}catch(err){
+            	throw err
+            	}
+            }
+
+      
+        stage ('Deploy'){
+                try{
+                    sh "docker build -t tomcat_web:latest ."
+                    sh "docker stop to_do_list_prod"
+                    sh "docker rm to_do_list_prod"
+                    sh "docker run -d -p 10003:8080  --name=to_do_list_prod  tomcat_web:latest"
+                }catch(err){
+                    throw err
+            }
+        }
+    }
+
+       /* stage('Delete Resources') {
+        //    steps {
+                script {
+                    openshift.withCluster('openshift-okd') {
+                        openshift.withProject('liberty-poc-uat') {
+                            echo "Deleting old resources from project ${openshift.project()} in cluster ${openshift.cluster()}"
+                            openshift.selector( 'all', [ app:'tomcat-web' ] ).delete()
+                        }
+                    }
+                }
+        //    }
+        }
+
+
+		 stage('Deploy to OCP') {
+           // steps {
+                script {
+                    openshift.withCluster('openshift-okd') {
+                        openshift.withProject('liberty-poc-uat') {
+                            //Create DeploymentConfig
+                            echo "Creating DeploymentConfig .... "
+                            def template_path = "Deployment.yaml"
+                            //def params = "--param=BRANCH=${branch} --param=VERSION=${env.BUILD_NUMBER}"
+                            //def dc = openshift.newApp(template_path, params)
+                            def dc = openshift.newApp(template_path)
+                            dc.describe()
+
+
+                            sleep(60)
+                    //        def pod = openshift.selector('pod', "tomcat-web-1-deploy")
+                    //        pod.untilEach(1) {
+                    //            return pod.object().status.phase == "Succeeded"
+                    //        }
+                            echo "Created ${dc.count()} DeploymentConfig named: ${dc.names()}"
+
+                        }
+                    }
+                }
+           // }
+        }
+
+}*/
+if (env.BRANCH_NAME == 'DEV')
+    {
+    
+stage ('Compile'){
+            try{
+                v=version()
+                if(v){
+                    echo "Building version ${v}"
+                }
+                sh "/usr/local/apache-maven-3.6.3/bin/mvn -v"
+            	sh "/usr/local/apache-maven-3.6.3/bin/mvn clean compile -U" 
+        	}catch(err){
+            	throw err
+                }
+        }
+       
+     /*
+        stage ('Unit Test'){
+            try{
+        		sh "/usr/local/apache-maven-3.6.3/bin/mvn test"
+        	}catch(err){
+            	throw err
+                }
+    	}  */
+    	
+                try {
+                  stage('Unit Test') {
+                     sh "/usr/local/apache-maven-3.6.3/bin/mvn clean test"
+                     sh "/usr/local/apache-maven-3.6.3/bin/mvn surefire-report:report"   
+                    }
+                } finally {
+                    junit 'target/surefire-reports/*.xml'   
+                    jacoco(execPattern: 'target/jacoco.exec')
+                }    	
+
+  
+      	stage ('Build & Package'){
+            try{
+           	    sh "/usr/local/apache-maven-3.6.3/bin/mvn package -DskipTests" 
+               	archiveArtifacts "target/**/*"
+      	    }catch(err){
+           	    throw err
+           	    }
+   	    }
+   	    
+   	    stage ('Code Scanning'){
+        	withSonarQubeEnv('sonarqube_admin'){
+            	try{
+                    sh"/usr/local/apache-maven-3.6.3/bin/mvn sonar:sonar -DskipTests"
+            	}catch(err){
+                	throw err
+                	}
+        	}
+    	}  
+    	
+            sleep 10
+
+            stage('Quality Gate') {
+                timeout(3) {
+                    def qg = waitForQualityGate()
+                    echo "---before qg:${qg.status}---"
+                    if (qg.status != 'OK') {
+                        error "未通过Sonarqube的代码质量阈检查,请及时修改！failure: ${qg.status}"
+                    }
+                    echo "---after qg:${qg.status}---"
+                }
+            }    	
+
+    	stage ('Deploy to nexus'){
+            try{
+        		sh "/usr/local/apache-maven-3.6.3/bin/mvn deploy -Dmaven.wagon.http.ssl.insecure=true -Dmaven.wagon.http.ssl.allowall=true"
+        	}catch(err){
+            	throw err
+            	}
+            }
+
+      
+        stage ('Deploy'){
+                try{
+                    sh "docker build -t tomcat_web:latest ."
+                    sh "docker stop to_do_list_dev"
+                    sh "docker rm to_do_list_dev"
+                    sh "docker run -d -p 10001:8080  --name=to_do_list_dev  tomcat_web:latest"
+                }catch(err){
+                    throw err
+            }
+        }
+    }
+
+if (env.BRANCH_NAME == 'UAT')
+    {
+    stage ('Compile'){
+            try{
+                v=version()
+                if(v){
+                    echo "Building version ${v}"
+                }
+                sh "/usr/local/apache-maven-3.6.3/bin/mvn -v"
+            	sh "/usr/local/apache-maven-3.6.3/bin/mvn clean compile -U" 
+        	}catch(err){
+            	throw err
+                }
+        }
+       
+     /*
+        stage ('Unit Test'){
+            try{
+        		sh "/usr/local/apache-maven-3.6.3/bin/mvn test"
+        	}catch(err){
+            	throw err
+                }
+    	}  
+    	
+                try {
+                  stage('Unit Test') {
+                     sh "/usr/local/apache-maven-3.6.3/bin/mvn clean test"
+                     sh "/usr/local/apache-maven-3.6.3/bin/mvn surefire-report:report"   
+                    }
+                } finally {
+                    junit 'target/surefire-reports/*.xml'   
+                    jacoco(execPattern: 'target/jacoco.exec')
+                }    */	
+
+  
+    	stage ('Build & Package'){
+           try{
+          	    sh "/usr/local/apache-maven-3.6.3/bin/mvn package -DskipTests" 
+              	archiveArtifacts "target/**/*"
+      	   }catch(err){
+          	    throw err
+         	    }
+   	         }
+   	    
+   	   /* stage ('Code Scanning'){
+        	withSonarQubeEnv('sonarqube_admin'){
+            	try{
+                    sh"/usr/local/apache-maven-3.6.3/bin/mvn sonar:sonar -DskipTests"
+            	}catch(err){
+                	throw err
+                	}
+        	}
+    	}  
+    	
+            sleep 10
+
+            stage('Quality Gate') {
+                timeout(3) {
+                    def qg = waitForQualityGate()
+                    echo "---before qg:${qg.status}---"
+                    if (qg.status != 'OK') {
+                        error "未通过Sonarqube的代码质量阈检查,请及时修改！failure: ${qg.status}"
+                    }
+                    echo "---after qg:${qg.status}---"
+                }
+            }    	*/
+
+        stage ('Jmeter test'){
+             try{	
+              /*container('ant') {
+                sh 'ant -buildfile ./Jmeter/build.xml'
+               script {
+                    publishHTML([allowMissing: false,
+                    alwaysLinkToLastBuild: true,
+                    keepAll: true,
+                    reportDir: './Jmeter/Result/html',
+                    reportFiles: 'TestReport.html',
+                    reportName: 'JmeterReport_1'
+                    ])
+                   }
+
+              }*/
+              
+              
+              sh 'rm -rf /usr/local/apache-jmeter-5.3/bin/templates/report/*.jtl'
+              sh 'rm -rf /var/lib/jenkins/workspace/CN_DevOps_Liberty_Share_DEMO_UAT/reports/*'
+              sh '/usr/local/apache-jmeter-5.3/bin/jmeter -n -t /usr/local/apache-jmeter-5.3/bin/templates/report/web_loadtest.jmx -l /usr/local/apache-jmeter-5.3/bin/templates/report/result.jtl -e -o /var/lib/jenkins/workspace/CN_DevOps_Liberty_Share_DEMO_UAT/reports'
+              
+              
+             /*sh '/usr/local/apache-jmeter-5.3/bin/jmeter -n -t /usr/local/apache-jmeter-5.3/bin/templates/report/web_loadtest.jmx -l /usr/local/apache-jmeter-5.3/bin/templates/report/result.jtl -o /var/lib/jenkins/workspace/CN_DevOps_Liberty_Share_DEMO_UAT/reports'*/
+              
+             /* sh '/usr/local/apache-jmeter-5.3/bin/jmeter -n -t /usr/local/apache-jmeter-5.3/bin/templates/report/TestPlan01.jmx -l /usr/local/apache-jmeter-5.3/bin/templates/report/result.jtl'*/
+              
+              script {
+                        publishHTML([allowMissing: false,
+                        alwaysLinkToLastBuild: false,
+                        keepAll: false,
+                        reportDir: 'reports/',
+                        reportFiles: '*.html',
+                        reportName: 'Jmeter Test Report',
+                        reportTitles: 'Jmeter report'
+                        ])
+                    }
+
+              }catch(err){
+                  throw err
+                  }
+              }
+
+    	stage ('Deploy to nexus'){
+            try{
+        		sh "/usr/local/apache-maven-3.6.3/bin/mvn deploy -Dmaven.wagon.http.ssl.insecure=true -Dmaven.wagon.http.ssl.allowall=true"
+        	}catch(err){
+            	throw err
+            	}
+            }
+
+      
+        stage ('Deploy'){
+                try{
+                    sh "docker build -t tomcat_web:latest ."
+                    sh "docker stop to_do_list_uat"
+                    sh "docker rm to_do_list_uat"
+                    sh "docker run -d -p 10002:8080  --name=to_do_list_uat  tomcat_web:latest"
+                }catch(err){
+                    throw err
+            }
+        }
+    }
+}
